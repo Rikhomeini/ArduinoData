@@ -3,6 +3,9 @@ import { io } from "socket.io-client";
 import { Line } from "react-chartjs-2";
 import { getDatabase, ref, query, orderByChild, limitToLast, get } from "firebase/database";
 import "./SensorChart.css";
+import { initializeApp } from 'firebase/app';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 import {
     Chart as ChartJS,
@@ -24,6 +27,15 @@ ChartJS.register(
     Tooltip,
     Legend
 );
+
+const firebaseConfig = {
+    apiKey: "AIzaSyCyX2mxX-4VaZKQl0M7X-4VdWmUsBtUTrQ",
+    authDomain: "arduinosensor-5b87c.firebaseapp.com",
+    databaseURL: "https://arduinosensor-5b87c-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "arduinosensor-5b87c",
+  };
+  
+  const app = initializeApp(firebaseConfig);
 
 const MAX_DATA_POINTS = 20;
 const DOWNLOAD_LIMIT = 1000;
@@ -73,7 +85,7 @@ function SensorChart() {
             if (!snapshot.exists()) {
                 throw new Error('No data available');
             }
-
+    
             const data = [];
             snapshot.forEach((childSnapshot) => {
                 const val = childSnapshot.val();
@@ -85,34 +97,33 @@ function SensorChart() {
                     daya: val.daya,
                 });
             });
-
+    
             // Sort data by timestamp
             data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-
-            // Create CSV content
-            const headers = ['Timestamp', 'KWH', 'Arus (A)', 'Tegangan (V)', 'Daya (W)'];
-            const csvContent = [
-                headers.join(','),
-                ...data.map(row => [
-                    row.timestamp,
-                    row.kwh.toFixed(2),
-                    row.arus.toFixed(2),
-                    row.tegangan.toFixed(1),
-                    row.daya.toFixed(0)
-                ].join(','))
-            ].join('\n');
-
-            // Download file
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.setAttribute('href', url);
-            link.setAttribute('download', `sensor_data_${new Date().toISOString().slice(0,19)}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-
+    
+            // Buat PDF menggunakan jsPDF
+            const doc = new jsPDF();
+            const tableColumn = ['Timestamp', 'KWH', 'Arus (A)', 'Tegangan (V)', 'Daya (W)'];
+            const tableRows = data.map(row => [
+                new Date(row.timestamp).toLocaleString(),
+                row.kwh.toFixed(2),
+                row.arus.toFixed(2),
+                row.tegangan.toFixed(1),
+                row.daya.toFixed(0)
+            ]);
+    
+            doc.text('Data Sensor', 14, 15);
+            doc.autoTable({
+                head: [tableColumn],
+                body: tableRows,
+                startY: 20,
+                styles: { fontSize: 9 },
+                headStyles: { fillColor: [41, 128, 185], textColor: 255 }
+            });
+    
+            // Simpan PDF
+            doc.save(`sensor_data_${new Date().toISOString().slice(0,19)}.pdf`);
+    
         } catch (error) {
             console.error('Error downloading data:', error);
             alert(error.message || 'Terjadi kesalahan saat mengunduh data');
@@ -255,7 +266,7 @@ function SensorChart() {
                     onClick={downloadData}
                     disabled={isDownloading}
                 >
-                    {isDownloading ? 'Mengunduh...' : 'Download Data CSV'}
+                    {isDownloading ? 'Mengunduh...' : 'Download Data PDF'}
                 </button>
             </div>
             
